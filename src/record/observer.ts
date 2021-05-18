@@ -1,5 +1,8 @@
 import { INode, MaskInputOptions, SlimDOMOptions } from 'rrweb-snapshot';
 import { FontFaceDescriptors, FontFaceSet } from 'css-font-loading-module';
+
+// import { URL } from 'url'
+
 import {
   mirror,
   throttle,
@@ -42,13 +45,16 @@ import {
   LogRecordOptions,
   Logger,
   LogLevel,
+  networkCallback,
+  NetworkParam,
 } from '../types';
 import MutationBuffer from './mutation';
 import { stringify } from './stringify';
 import { IframeManager } from './iframe-manager';
 import { ShadowDomManager } from './shadow-dom-manager';
 import { StackFrame, ErrorStackParser } from './error-stack-parser';
-
+const ms = require('licia/ms')
+const chobitsu = require('chobitsu');
 type WindowWithStoredMutationObserver = Window & {
   __rrMutationObserver?: MutationObserver;
 };
@@ -111,7 +117,7 @@ export function initMutationObserver(
   if (
     angularZoneSymbol &&
     ((window as unknown) as Record<string, typeof MutationObserver>)[
-      angularZoneSymbol
+    angularZoneSymbol
     ]
   ) {
     mutationObserverCtor = ((window as unknown) as Record<
@@ -139,7 +145,7 @@ function initMoveObserver(
   doc: Document,
 ): listenerHandler {
   if (sampling.mousemove === false) {
-    return () => {};
+    return () => { };
   }
 
   const threshold =
@@ -190,8 +196,8 @@ function initMoveObserver(
         evt instanceof MouseEvent
           ? IncrementalSource.MouseMove
           : evt instanceof DragEvent
-          ? IncrementalSource.Drag
-          : IncrementalSource.TouchMove,
+            ? IncrementalSource.Drag
+            : IncrementalSource.TouchMove,
       );
     },
     threshold,
@@ -216,11 +222,11 @@ function initMouseInteractionObserver(
   sampling: SamplingStrategy,
 ): listenerHandler {
   if (sampling.mouseInteraction === false) {
-    return () => {};
+    return () => { };
   }
   const disableMap: Record<string, boolean | undefined> =
     sampling.mouseInteraction === true ||
-    sampling.mouseInteraction === undefined
+      sampling.mouseInteraction === undefined
       ? {}
       : sampling.mouseInteraction;
 
@@ -344,7 +350,7 @@ function initInputObserver(
       isChecked = (target as HTMLInputElement).checked;
     } else if (
       maskInputOptions[
-        (target as Element).tagName.toLowerCase() as keyof MaskInputOptions
+      (target as Element).tagName.toLowerCase() as keyof MaskInputOptions
       ] ||
       maskInputOptions[type as keyof MaskInputOptions]
     ) {
@@ -480,7 +486,7 @@ function initCanvasMutationObserver(
     try {
       if (
         typeof CanvasRenderingContext2D.prototype[
-          prop as keyof CanvasRenderingContext2D
+        prop as keyof CanvasRenderingContext2D
         ] !== 'function'
       ) {
         continue;
@@ -560,7 +566,7 @@ function initFontObserver(cb: fontCallback): listenerHandler {
         typeof source === 'string'
           ? source
           : // tslint:disable-next-line: no-any
-            JSON.stringify(Array.from(new Uint8Array(source as any))),
+          JSON.stringify(Array.from(new Uint8Array(source as any))),
     });
     return fontFace;
   };
@@ -589,13 +595,117 @@ function initFontObserver(cb: fontCallback): listenerHandler {
   };
 }
 
+function initNetworkObserver(
+  cb: networkCallback,
+): listenerHandler {
+  let _requests: { [key: string]: NetworkParam } = {};
+  chobitsu.domain('Network').enable()
+  const network = chobitsu.domain('Network')
+  network.on('requestWillBeSent', _reqWillBeSent)
+  network.on('responseReceivedExtraInfo', _resReceivedExtraInfo)
+  network.on('responseReceived', _resReceived)
+  network.on('loadingFinished', _loadingFinished)
+  function _reqWillBeSent(params: NetworkParam) {
+    _requests[params.requestId] = {
+      name: params.request.url,
+      url: params.request.url,
+      status: 'pending',
+      type: 'unknown',
+      subType: 'unknown',
+      size: 0,
+      data: params.request.postData,
+      method: params.request.method,
+      startTime: params.timestamp * 1000,
+      time: 0,
+      resTxt: '',
+      done: false,
+      reqHeaders: params.request.headers || {},
+      resHeaders: {},
+      requestId: params.requestId,
+      id: params.requestId
+    }
+  }
+
+  function _resReceivedExtraInfo(params: NetworkParam) {
+    const target = _requests[params.requestId]
+    if (!target) {
+      return
+    }
+
+    target.resHeaders = params.headers
+
+    _updateType(target)
+    cb(target)
+  }
+  function getType(contentType: string) {
+    const type = contentType.split(';')[0].split('/')
+    return {
+      type: type[0],
+      subType: type[type.length - 1],
+    }
+  }
+
+  function _updateType(target: { [x: string]: any; name?: string; url?: string; status?: string; method?: string; resHeaders?: any; type?: any; subType?: any; }) {
+    const contentType = target.resHeaders['content-type'] || ''
+    const { type, subType } = getType(contentType)
+    target.type = type
+    target.subType = subType
+  }
+
+  function _resReceived(params: NetworkParam) {
+    const target = _requests[params.requestId]
+    if (!target) {
+      return
+    }
+
+    const { response } = params
+    const { status, headers } = response
+    target.status = status
+    if (status < 200 || status >= 300) {
+      target.hasErr = true
+    }
+    if (headers) {
+      target.resHeaders = headers
+      _updateType(target)
+    }
+    cb(target)
+  }
+  function _loadingFinished(params: { requestId: string | number; timestamp: number; encodedDataLength: any; }) {
+    const target = _requests[params.requestId]
+    if (!target) {
+      return
+    }
+
+    const time = params.timestamp * 1000
+    target.time = time - target.startTime
+    target.displayTime = ms(target.time)
+
+    target.size = params.encodedDataLength
+    target.done = true
+    target.resTxt = chobitsu.domain('Network').getResponseBody({
+      requestId: params.requestId,
+    }).body
+    cb(target)
+  }
+
+
+
+  return () => {
+    network.off('requestWillBeSent', _reqWillBeSent)
+    network.off('responseReceivedExtraInfo', _resReceivedExtraInfo)
+    network.off('responseReceived', _resReceived)
+    network.off('loadingFinished', _loadingFinished)
+    _requests = {};
+  }
+}
+
 function initLogObserver(
   cb: logCallback,
   logOptions: LogRecordOptions,
 ): listenerHandler {
   const logger = logOptions.logger;
   if (!logger) {
-    return () => {};
+    return () => { };
   }
   let logCount = 0;
   const cancelHandlers: listenerHandler[] = [];
@@ -642,7 +752,7 @@ function initLogObserver(
    */
   function replace(_logger: Logger, level: LogLevel) {
     if (!_logger[level]) {
-      return () => {};
+      return () => { };
     }
     // replace the logger.{level}. return a restore function
     return patch(_logger, level, (original) => {
@@ -693,6 +803,7 @@ function mergeHooks(o: observerParam, hooks: hooksParam) {
     canvasMutationCb,
     fontCb,
     logCb,
+    networkCb
   } = o;
   o.mutationCb = (...p: Arguments<mutationCallBack>) => {
     if (hooks.mutation) {
@@ -760,6 +871,13 @@ function mergeHooks(o: observerParam, hooks: hooksParam) {
     }
     logCb(...p);
   };
+
+  o.networkCb = (...p: Arguments<networkCallback>) => {
+    if (hooks.network) {
+      hooks.network(...p);
+    }
+    networkCb(...p);
+  };
 }
 
 export function initObservers(
@@ -813,11 +931,15 @@ export function initObservers(
   const styleSheetObserver = initStyleSheetObserver(o.styleSheetRuleCb);
   const canvasMutationObserver = o.recordCanvas
     ? initCanvasMutationObserver(o.canvasMutationCb, o.blockClass)
-    : () => {};
-  const fontObserver = o.collectFonts ? initFontObserver(o.fontCb) : () => {};
+    : () => { };
+  const fontObserver = o.collectFonts ? initFontObserver(o.fontCb) : () => { };
   const logObserver = o.logOptions
     ? initLogObserver(o.logCb, o.logOptions)
-    : () => {};
+    : () => { };
+
+  const networkObserver = o.recordNetwork
+    ? initNetworkObserver(o.networkCb)
+    : () => { };
 
   return () => {
     mutationObserver.disconnect();
@@ -831,5 +953,6 @@ export function initObservers(
     canvasMutationObserver();
     fontObserver();
     logObserver();
+    networkObserver();
   };
 }

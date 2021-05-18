@@ -292,6 +292,9 @@ replayer.pause(5000);
 | mouseTail           | true          | 是否在回放时增加鼠标轨迹。传入 false 可关闭，传入对象可以定制轨迹持续时间、样式等，配置详见[类型](https://github.com/rrweb-io/rrweb/blob/9488deb6d54a5f04350c063d942da5e96ab74075/src/types.ts#L407) |
 | unpackFn            | -             | 数据解压缩函数，详见[优化存储策略](./docs/recipes/optimize-storage.zh_CN.md)                                                                                                                         |
 | logConfig           | -             | console logger 数据播放设置，详见[console 录制和播放](./docs/recipes/console.zh_CN.md)                                                                                                               |
+|networkConfig|-|network logger 数据播放设置，详见[network 录制和播放](./docs/recipes/network.zh_CN.md)    
+|
+
 
 #### 使用 rrweb-player
 

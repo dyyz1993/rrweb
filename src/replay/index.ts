@@ -30,6 +30,9 @@ import {
   LogReplayConfig,
   logData,
   ReplayLogger,
+  networkData,
+  // ReplayNetwork,
+  NetworkReplayConfig,
 } from '../types';
 import {
   mirror,
@@ -91,6 +94,8 @@ const defaultLogConfig: LogReplayConfig = {
   replayLogger: undefined,
 };
 
+const defaultNetworkConfig: NetworkReplayConfig = (data: networkData) => console.info(data)
+
 export class Replayer {
   public wrapper: HTMLDivElement;
   public iframe: HTMLIFrameElement;
@@ -148,6 +153,7 @@ export class Replayer {
       pauseAnimation: true,
       mouseTail: defaultMouseTailConfig,
       logConfig: defaultLogConfig,
+      networkConfig: defaultNetworkConfig
     };
     this.config = Object.assign({}, defaultConfig, config);
     if (!this.config.logConfig.replayLogger) {
@@ -483,7 +489,7 @@ export class Replayer {
                 if (
                   _event.delay! - event.delay! >
                   SKIP_TIME_THRESHOLD *
-                    this.speedService.state.context.timer.speed
+                  this.speedService.state.context.timer.speed
                 ) {
                   this.nextUserInteractionEvent = _event;
                 }
@@ -517,7 +523,7 @@ export class Replayer {
       if (
         event ===
         this.service.state.context.events[
-          this.service.state.context.events.length - 1
+        this.service.state.context.events.length - 1
         ]
       ) {
         const finish = () => {
@@ -797,7 +803,7 @@ export class Replayer {
           });
           // add a dummy action to keep timer alive
           this.timer.addAction({
-            doAction() {},
+            doAction() { },
             delay: e.delay! - d.positions[0]?.timeOffset,
           });
         }
@@ -1054,6 +1060,23 @@ export class Replayer {
             console.warn(error);
           }
         }
+        break;
+      }
+
+
+      case IncrementalSource.Network: {
+        try {
+          const logData = e.data as networkData;
+          const replayNetwork = this.config.networkConfig;
+          if (typeof replayNetwork === 'function') {
+            replayNetwork(logData);
+          }
+        } catch (error) {
+          if (this.config.showWarning) {
+            console.warn(error);
+          }
+        }
+        break;
       }
       default:
     }
@@ -1396,8 +1419,8 @@ export class Replayer {
             ORIGINAL_ATTRIBUTE_NAME
           ]
             ? ((console.log as unknown) as PatchedConsoleLog)[
-                ORIGINAL_ATTRIBUTE_NAME
-              ]
+            ORIGINAL_ATTRIBUTE_NAME
+            ]
             : console.log;
           logger(
             ...data.payload.map((s) => JSON.parse(s)),
@@ -1410,8 +1433,8 @@ export class Replayer {
             ORIGINAL_ATTRIBUTE_NAME
           ]
             ? ((console[level] as unknown) as PatchedConsoleLog)[
-                ORIGINAL_ATTRIBUTE_NAME
-              ]
+            ORIGINAL_ATTRIBUTE_NAME
+            ]
             : console[level];
           logger(
             ...data.payload.map((s) => JSON.parse(s)),

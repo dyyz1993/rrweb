@@ -45,6 +45,10 @@ export declare type logEvent = {
     type: EventType.IncrementalSnapshot;
     data: incrementalData;
 };
+export declare type networkEvent = {
+    type: EventType.IncrementalSnapshot;
+    data: incrementalData;
+};
 export declare type customEvent<T = unknown> = {
     type: EventType.Custom;
     data: {
@@ -66,7 +70,8 @@ export declare enum IncrementalSource {
     CanvasMutation = 9,
     Font = 10,
     Log = 11,
-    Drag = 12
+    Drag = 12,
+    Network = 13
 }
 export declare type mutationData = {
     source: IncrementalSource.Mutation;
@@ -103,8 +108,11 @@ export declare type fontData = {
 export declare type logData = {
     source: IncrementalSource.Log;
 } & LogParam;
-export declare type incrementalData = mutationData | mousemoveData | mouseInteractionData | scrollData | viewportResizeData | inputData | mediaInteractionData | styleSheetRuleData | canvasMutationData | fontData | logData;
-export declare type event = domContentLoadedEvent | loadedEvent | fullSnapshotEvent | incrementalSnapshotEvent | metaEvent | logEvent | customEvent;
+export declare type networkData = {
+    source: IncrementalSource.Network;
+} & NetworkParam;
+export declare type incrementalData = mutationData | mousemoveData | mouseInteractionData | scrollData | viewportResizeData | inputData | mediaInteractionData | styleSheetRuleData | canvasMutationData | fontData | logData | networkData;
+export declare type event = domContentLoadedEvent | loadedEvent | fullSnapshotEvent | incrementalSnapshotEvent | metaEvent | logEvent | customEvent | networkEvent;
 export declare type eventWithTime = event & {
     timestamp: number;
     delay?: number;
@@ -140,6 +148,7 @@ export declare type recordOptions<T> = {
     collectFonts?: boolean;
     mousemoveWait?: number;
     recordLog?: boolean | LogRecordOptions;
+    recordNetwork?: boolean;
 };
 export declare type observerParam = {
     mutationCb: mutationCallBack;
@@ -163,6 +172,8 @@ export declare type observerParam = {
     fontCb: fontCallback;
     logCb: logCallback;
     logOptions: LogRecordOptions;
+    networkCb: networkCallback;
+    recordNetwork: boolean;
     sampling: SamplingStrategy;
     recordCanvas: boolean;
     collectFonts: boolean;
@@ -183,6 +194,7 @@ export declare type hooksParam = {
     canvasMutation?: canvasMutationCallback;
     font?: fontCallback;
     log?: logCallback;
+    network?: networkCallback;
 };
 export declare type mutationRecord = {
     type: string;
@@ -312,13 +324,22 @@ export declare type Logger = {
     warn?: typeof console.warn;
 };
 export declare type ReplayLogger = Partial<Record<LogLevel, (data: logData) => void>>;
+export declare type ReplayNetwork = (data: networkData) => void;
 export declare type LogParam = {
     level: LogLevel;
     trace: string[];
     payload: string[];
 };
+export declare type NetworkParam = {
+    name: string;
+    url: string;
+    status: string;
+    method: string;
+    [key: string]: any;
+};
 export declare type fontCallback = (p: fontParam) => void;
 export declare type logCallback = (p: LogParam) => void;
+export declare type networkCallback = (p: NetworkParam) => void;
 export declare type viewportResizeDimension = {
     width: number;
     height: number;
@@ -382,7 +403,9 @@ export declare type playerConfig = {
     };
     unpackFn?: UnpackFn;
     logConfig: LogReplayConfig;
+    networkConfig: NetworkReplayConfig;
 };
+export declare type NetworkReplayConfig = ReplayNetwork;
 export declare type LogReplayConfig = {
     level?: LogLevel[] | undefined;
     replayLogger: ReplayLogger | undefined;

@@ -115,6 +115,7 @@ for (const c of baseConfigs) {
         format: 'iife',
         file: toMinPath(c.pathFn(pkg.unpkg)),
         sourcemap: true,
+        
       },
     ],
   });
@@ -126,6 +127,7 @@ for (const c of baseConfigs) {
       {
         format: 'cjs',
         file: c.pathFn('lib/rrweb.js'),
+        exports:"auto"
       },
     ],
   });
@@ -139,6 +141,7 @@ for (const c of baseConfigs) {
         format: 'esm',
         dir: 'es/rrweb',
         plugins: [renameNodeModules('ext')],
+        exports:"auto"
       },
     ],
   });

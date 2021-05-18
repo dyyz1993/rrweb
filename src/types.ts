@@ -59,6 +59,11 @@ export type logEvent = {
   data: incrementalData;
 };
 
+export type networkEvent = {
+  type: EventType.IncrementalSnapshot;
+  data: incrementalData;
+};
+
 export type customEvent<T = unknown> = {
   type: EventType.Custom;
   data: {
@@ -83,6 +88,7 @@ export enum IncrementalSource {
   Font,
   Log,
   Drag,
+  Network
 }
 
 export type mutationData = {
@@ -91,9 +97,9 @@ export type mutationData = {
 
 export type mousemoveData = {
   source:
-    | IncrementalSource.MouseMove
-    | IncrementalSource.TouchMove
-    | IncrementalSource.Drag;
+  | IncrementalSource.MouseMove
+  | IncrementalSource.TouchMove
+  | IncrementalSource.Drag;
   positions: mousePosition[];
 };
 
@@ -134,6 +140,10 @@ export type logData = {
   source: IncrementalSource.Log;
 } & LogParam;
 
+export type networkData = {
+  source: IncrementalSource.Network;
+} & NetworkParam;
+
 export type incrementalData =
   | mutationData
   | mousemoveData
@@ -145,7 +155,8 @@ export type incrementalData =
   | styleSheetRuleData
   | canvasMutationData
   | fontData
-  | logData;
+  | logData
+  | networkData
 
 export type event =
   | domContentLoadedEvent
@@ -154,7 +165,9 @@ export type event =
   | incrementalSnapshotEvent
   | metaEvent
   | logEvent
-  | customEvent;
+  | customEvent
+  | networkEvent
+
 
 export type eventWithTime = event & {
   timestamp: number;
@@ -214,6 +227,7 @@ export type recordOptions<T> = {
   // departed, please use sampling options
   mousemoveWait?: number;
   recordLog?: boolean | LogRecordOptions;
+  recordNetwork?: boolean
 };
 
 export type observerParam = {
@@ -238,6 +252,9 @@ export type observerParam = {
   fontCb: fontCallback;
   logCb: logCallback;
   logOptions: LogRecordOptions;
+  networkCb: networkCallback;
+  recordNetwork: boolean
+  // networkOptions: ;
   sampling: SamplingStrategy;
   recordCanvas: boolean;
   collectFonts: boolean;
@@ -259,6 +276,7 @@ export type hooksParam = {
   canvasMutation?: canvasMutationCallback;
   font?: fontCallback;
   log?: logCallback;
+  network?: networkCallback
 };
 
 // https://dom.spec.whatwg.org/#interface-mutationrecord
@@ -445,17 +463,25 @@ export type Logger = {
  * (data: logData) => void> function to display the log data
  */
 export type ReplayLogger = Partial<Record<LogLevel, (data: logData) => void>>;
-
+export type ReplayNetwork = (data: networkData) => void;
 export type LogParam = {
   level: LogLevel;
   trace: string[];
   payload: string[];
 };
 
+export type NetworkParam = {
+  name: string;
+  url: string;
+  status: string;
+  method: string;
+  [key: string]: any
+}
+
 export type fontCallback = (p: fontParam) => void;
 
 export type logCallback = (p: LogParam) => void;
-
+export type networkCallback = (p: NetworkParam) => void;
 export type viewportResizeDimension = {
   width: number;
   height: number;
@@ -523,16 +549,19 @@ export type playerConfig = {
   UNSAFE_replayCanvas: boolean;
   pauseAnimation?: boolean;
   mouseTail:
-    | boolean
-    | {
-        duration?: number;
-        lineCap?: string;
-        lineWidth?: number;
-        strokeStyle?: string;
-      };
+  | boolean
+  | {
+    duration?: number;
+    lineCap?: string;
+    lineWidth?: number;
+    strokeStyle?: string;
+  };
   unpackFn?: UnpackFn;
   logConfig: LogReplayConfig;
+  networkConfig: NetworkReplayConfig;
 };
+
+export type NetworkReplayConfig = ReplayNetwork;
 
 export type LogReplayConfig = {
   level?: LogLevel[] | undefined;
